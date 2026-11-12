@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Priority Caption Selector
 // @namespace    https://github.com/andris155/YouTubePriorityCaptionSelector
-// @version      1.1.0
+// @version      1.1.1
 // @description  Automatically selects YouTube captions based on your custom language priority list (manual & auto-generated), with intelligent auto-translate fallback and zero player flickering.
 // @author       andris155
 // @license      MIT
@@ -11,6 +11,7 @@
 // @updateURL    https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js
 // @downloadURL  https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js
 // @match        https://www.youtube.com/*
+// @noframes
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
@@ -20,6 +21,11 @@
 
 (function () {
     'use strict';
+
+    // Prevent running inside iframes (e.g. live chat, embedded frames)
+    if (window.self !== window.top) {
+        return;
+    }
 
     const win = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
     const doc = win.document || document;
