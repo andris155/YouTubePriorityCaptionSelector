@@ -21,6 +21,9 @@ An intelligent, lightweight Tampermonkey / Violentmonkey userscript for YouTube 
 - **Channel Filters:** Specify channel whitelists (always leave subtitles on) or blacklists (keep subtitles off).
 - **Music & Shorts Controls:** Optionally turn subtitles off on official music videos, topic tracks, or YouTube Shorts.
 - **Manual Override Respect:** If you manually toggle the CC button, press `C`, or change subtitle options via YouTube's menu, the script stands down for that video.
+- **Built-in Settings GUI:** Open the in-page settings dashboard directly from your userscript extension menu to configure priority languages, switches, and channel rules without touching any code.
+- **Automatic Light & Dark Mode:** The settings interface automatically adapts to YouTube's active appearance theme.
+- **Persistent Across Updates:** Custom settings are saved to disk in extension storage (`GM_getValue`) so GitHub updates never overwrite your configuration.
 - **Flicker-Free Navigation:** Seamlessly tracks YouTube's single-page app navigation without jarring UI flashes.
 
 ---
@@ -34,22 +37,38 @@ An intelligent, lightweight Tampermonkey / Violentmonkey userscript for YouTube 
 
 ---
 
-## Installation & Usage
+## Installation & Updates
 
 1. Ensure your userscript manager is installed and enabled.
 2. Click the direct raw install link:
    - **[Install YouTube Priority Caption Selector](https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js)**
 3. Your userscript manager will open an installation tab — click **Install**.
-4. Open any video on [YouTube](https://www.youtube.com/) and captions will be managed automatically based on your preferences.
+4. The userscript includes `@updateURL` and `@downloadURL`, so future updates from GitHub are checked and installed automatically by your userscript manager.
 
 ---
 
-## Configuration
+## Configuration & Settings
 
-Settings are located in the `CONFIG` object near the top of the userscript file. Open your userscript manager dashboard, edit the script, and customize the options to match your needs:
+Custom settings are saved in your userscript manager's persistent database (`GM_getValue`), meaning **future script updates from GitHub will never overwrite your custom settings!**
+
+### Method 1: Extension Menu GUI (Recommended)
+
+1. Open any video on [YouTube](https://www.youtube.com/).
+2. Click the **Tampermonkey** or **Violentmonkey** extension icon in your browser toolbar.
+3. Click **`⚙️ Edit Caption Settings`**:
+   - Opens the visual configuration dashboard.
+   - Reorder priority rules with `↑` and `↓`, edit language codes, or add new languages.
+   - Toggle **Smart Mute**, **Native Language Auto-Disable**, **Shorts**, and **Music Video** options.
+   - Automatically matches YouTube's active Light or Dark theme.
+   - Click **Save & Apply** and the page refreshes with your updated settings.
+4. To revert to defaults at any time, click **Reset Defaults**.
+
+### Method 2: In-Code Default Settings
+
+If you prefer editing code directly, you can customize `DEFAULT_CONFIG` near the top of the userscript file:
 
 ```javascript
-const CONFIG = {
+const DEFAULT_CONFIG = {
     // 1. Language Priority List
     // Evaluated from top to bottom; activates the first match found.
     PRIORITY: [
@@ -98,9 +117,10 @@ const CONFIG = {
 
 ## How It Works & Security
 
-- **No Administrator or Elevated Permissions:** Operates with `@grant none`, meaning it cannot access local files, host storage, or third-party cookies.
-- **Zero External Network Calls:** Runs entirely inside the local YouTube browser tab without contacting external servers or analytics.
-- **No Data Collection:** Does not monitor, store, or transmit your watch history, search queries, or account information.
+- **Strictly Local Execution:** Uses standard userscript grants (`GM_getValue`, `GM_setValue`, `GM_registerMenuCommand`, `unsafeWindow`) exclusively to persist your preferences across script updates and integrate the settings menu.
+- **Trusted Types / CSP Compliant:** Completely free of `innerHTML` assignments to comply with YouTube's strict Content Security Policy.
+- **Zero External Network Calls:** Operates entirely inside the local YouTube tab without contacting external servers or analytics.
+- **No Data Collection:** Does not monitor, store, or transmit your watch history, search queries, or account credentials.
 
 ---
 
