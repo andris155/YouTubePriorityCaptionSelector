@@ -1,22 +1,30 @@
 // ==UserScript==
 // @name         YouTube Priority Caption Selector
 // @namespace    https://github.com/andris155/YouTubePriorityCaptionSelector
-// @version      1.0.0
+// @version      1.1.0
 // @description  Automatically selects YouTube captions based on your custom language priority list (manual & auto-generated), with intelligent auto-translate fallback and zero player flickering.
 // @author       andris155
 // @license      MIT
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @homepageURL  https://github.com/andris155/YouTubePriorityCaptionSelector
 // @supportURL   https://github.com/andris155/YouTubePriorityCaptionSelector/issues
+// @updateURL    https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js
+// @downloadURL  https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js
 // @match        https://www.youtube.com/*
-// @grant        none
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
+// @grant        unsafeWindow
 // @run-at       document-idle
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    const CONFIG = {
+    const win = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+    const doc = win.document || document;
+
+    const DEFAULT_CONFIG = {
         /**
          * PRIORITY LIST:
          * Add as many or as few priority rules as you want (2, 3, 4, 5, or more).
@@ -102,6 +110,542 @@
         DEBUG: false
     };
 
+    function loadConfig() {
+        try {
+            let saved = null;
+            if (typeof GM_getValue === 'function') {
+                saved = GM_getValue('user_config', null);
+            }
+            if (!saved && typeof localStorage !== 'undefined') {
+                const ls = localStorage.getItem('yt_caption_user_config');
+                if (ls) saved = JSON.parse(ls);
+            }
+            if (saved && typeof saved === 'object') {
+                return {
+                    ...DEFAULT_CONFIG,
+                    ...saved,
+                    NATIVE_LANG_AUTO_DISABLE: {
+                        ...DEFAULT_CONFIG.NATIVE_LANG_AUTO_DISABLE,
+                        ...(saved.NATIVE_LANG_AUTO_DISABLE || {})
+                    },
+                    CHANNEL_BLACKLIST: {
+                        ...DEFAULT_CONFIG.CHANNEL_BLACKLIST,
+                        ...(saved.CHANNEL_BLACKLIST || {})
+                    },
+                    CHANNEL_WHITELIST: {
+                        ...DEFAULT_CONFIG.CHANNEL_WHITELIST,
+                        ...(saved.CHANNEL_WHITELIST || {})
+                    }
+                };
+            }
+        } catch {}
+        return DEFAULT_CONFIG;
+    }
+
+    function saveConfig(cfg) {
+        try {
+            if (typeof GM_setValue === 'function') {
+                GM_setValue('user_config', cfg);
+            }
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('yt_caption_user_config', JSON.stringify(cfg));
+            }
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    const CONFIG = loadConfig();
+
+    function isYouTubeDarkMode() {
+        try {
+            return Boolean(
+                doc.documentElement.hasAttribute('dark') ||
+                doc.querySelector('html[dark]') ||
+                (win.matchMedia && win.matchMedia('(prefers-color-scheme: dark)').matches)
+            );
+        } catch {
+            return false;
+        }
+    }
+
+    function createEl(tag, style = '', text = '') {
+        const el = doc.createElement(tag);
+        if (style) el.style.cssText = style;
+        if (text) el.textContent = text;
+        return el;
+    }
+
+    function openSettingsModal() {
+        try {
+            const existing = doc.getElementById('yt-caption-settings-modal');
+            if (existing) existing.remove();
+
+            let draft = JSON.parse(JSON.stringify(CONFIG));
+            let isDark = isYouTubeDarkMode();
+
+            const getTheme = (dark) => ({
+                bgOverlay: dark ? 'rgba(0,0,0,0.75)' : 'rgba(0,0,0,0.5)',
+                bgModal: dark ? '#212121' : '#ffffff',
+                bgCard: dark ? '#181818' : '#f8f9fa',
+                bgInput: dark ? '#121212' : '#ffffff',
+                border: dark ? '#383838' : '#dadce0',
+                borderSubtle: dark ? '#2c2c2c' : '#e8eaed',
+                textMain: dark ? '#f1f1f1' : '#202124',
+                textMuted: dark ? '#aaaaaa' : '#5f6368',
+                btnPrimaryBg: dark ? '#3ea6ff' : '#065fd4',
+                btnPrimaryText: dark ? '#0f0f0f' : '#ffffff',
+                btnSecBg: dark ? '#2b2b2b' : '#ffffff',
+                btnSecText: dark ? '#f1f1f1' : '#3c4043',
+                btnDangerText: dark ? '#ff6b6b' : '#d93025',
+                accentColor: dark ? '#3ea6ff' : '#065fd4',
+                switchOffBg: dark ? '#444444' : '#cccccc'
+            });
+
+            let t = getTheme(isDark);
+
+            const overlay = createEl('div', 'position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;z-index:2147483647;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;box-sizing:border-box;');
+            overlay.id = 'yt-caption-settings-modal';
+            overlay.style.background = t.bgOverlay;
+
+            const modal = createEl('div', 'width:680px;max-width:94vw;max-height:88vh;border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,0.4);overflow:hidden;display:flex;flex-direction:column;box-sizing:border-box;');
+            modal.style.background = t.bgModal;
+            modal.style.color = t.textMain;
+            modal.style.border = `1px solid ${t.border}`;
+
+            // 1. Header
+            const header = createEl('div', 'padding:16px 22px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;');
+            header.style.background = t.bgCard;
+            header.style.borderBottom = `1px solid ${t.borderSubtle}`;
+
+            const titleBox = createEl('div', 'display:flex;align-items:center;gap:8px;');
+            titleBox.appendChild(createEl('span', 'font-size:18px;', '⚙️'));
+            const title = createEl('h3', 'margin:0;font-size:16px;font-weight:600;', 'YouTube Caption Priority Settings');
+            title.style.color = t.textMain;
+            titleBox.appendChild(title);
+
+            const closeBtn = createEl('span', 'cursor:pointer;font-size:24px;line-height:1;font-weight:400;user-select:none;padding:2px 6px;', '×');
+            closeBtn.style.color = t.textMuted;
+            header.appendChild(titleBox);
+            header.appendChild(closeBtn);
+
+            // 2. Scrollable Content Body
+            const body = createEl('div', 'padding:20px 22px;overflow-y:auto;flex-grow:1;display:flex;flex-direction:column;gap:24px;box-sizing:border-box;');
+
+            function createSection(headingText, helperText) {
+                const sec = createEl('div', 'display:flex;flex-direction:column;gap:10px;');
+                const secHeader = createEl('div');
+                const h4 = createEl('h4', 'margin:0;font-size:14px;font-weight:600;', headingText);
+                h4.style.color = t.textMain;
+                secHeader.appendChild(h4);
+                if (helperText) {
+                    const p = createEl('p', 'margin:4px 0 0 0;font-size:12px;line-height:1.4;', helperText);
+                    p.style.color = t.textMuted;
+                    secHeader.appendChild(p);
+                }
+                sec.appendChild(secHeader);
+                return sec;
+            }
+
+            // SECTION 1: PRIORITY LANGUAGES
+            const prioritySec = createSection(
+                '🎯 Subtitle Priority List',
+                'Checked from top to bottom. The first match available on the video will be activated automatically.'
+            );
+
+            const priorityListContainer = createEl('div', 'display:flex;flex-direction:column;gap:8px;');
+
+            function renderPriorityList() {
+                while (priorityListContainer.firstChild) {
+                    priorityListContainer.removeChild(priorityListContainer.firstChild);
+                }
+                draft.PRIORITY.forEach((item, idx) => {
+                    const row = createEl('div', 'display:flex;align-items:center;gap:8px;border-radius:8px;padding:8px 12px;box-sizing:border-box;');
+                    row.style.background = t.bgCard;
+                    row.style.border = `1px solid ${t.border}`;
+
+                    const idxBadge = createEl('span', 'font-size:12px;font-weight:700;width:24px;text-align:center;', `#${idx + 1}`);
+                    idxBadge.style.color = t.accentColor;
+                    row.appendChild(idxBadge);
+
+                    const langInput = createEl('input', 'width:60px;padding:6px 8px;border-radius:6px;font-size:13px;text-align:center;');
+                    langInput.style.background = t.bgInput;
+                    langInput.style.color = t.textMain;
+                    langInput.style.border = `1px solid ${t.border}`;
+                    langInput.type = 'text';
+                    langInput.placeholder = 'e.g. en';
+                    langInput.value = item.lang || '';
+                    langInput.oninput = () => { item.lang = langInput.value.trim().toLowerCase(); };
+                    row.appendChild(langInput);
+
+                    const nameInput = createEl('input', 'flex-grow:1;padding:6px 10px;border-radius:6px;font-size:13px;');
+                    nameInput.style.background = t.bgInput;
+                    nameInput.style.color = t.textMain;
+                    nameInput.style.border = `1px solid ${t.border}`;
+                    nameInput.type = 'text';
+                    nameInput.placeholder = 'Label (e.g. English)';
+                    nameInput.value = item.name || '';
+                    nameInput.oninput = () => { item.name = nameInput.value.trim(); };
+                    row.appendChild(nameInput);
+
+                    const typeSelect = createEl('select', 'padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;');
+                    typeSelect.style.background = t.bgInput;
+                    typeSelect.style.color = t.textMain;
+                    typeSelect.style.border = `1px solid ${t.border}`;
+
+                    const optManual = new Option('Manual only', 'false');
+                    const optAuto = new Option('Auto (ASR) only', 'true');
+                    const optEither = new Option('Either (Manual first)', 'null');
+
+                    if (item.autoGenerated === false) optManual.selected = true;
+                    else if (item.autoGenerated === true) optAuto.selected = true;
+                    else optEither.selected = true;
+
+                    typeSelect.appendChild(optManual);
+                    typeSelect.appendChild(optAuto);
+                    typeSelect.appendChild(optEither);
+
+                    typeSelect.onchange = () => {
+                        if (typeSelect.value === 'false') item.autoGenerated = false;
+                        else if (typeSelect.value === 'true') item.autoGenerated = true;
+                        else delete item.autoGenerated;
+                    };
+                    row.appendChild(typeSelect);
+
+                    if (idx > 0) {
+                        const upBtn = createEl('button', 'background:transparent;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;', '↑');
+                        upBtn.style.border = `1px solid ${t.border}`;
+                        upBtn.style.color = t.textMuted;
+                        upBtn.title = 'Move Up';
+                        upBtn.onclick = () => {
+                            const temp = draft.PRIORITY[idx - 1];
+                            draft.PRIORITY[idx - 1] = draft.PRIORITY[idx];
+                            draft.PRIORITY[idx] = temp;
+                            renderPriorityList();
+                        };
+                        row.appendChild(upBtn);
+                    }
+
+                    if (idx < draft.PRIORITY.length - 1) {
+                        const downBtn = createEl('button', 'background:transparent;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;', '↓');
+                        downBtn.style.border = `1px solid ${t.border}`;
+                        downBtn.style.color = t.textMuted;
+                        downBtn.title = 'Move Down';
+                        downBtn.onclick = () => {
+                            const temp = draft.PRIORITY[idx + 1];
+                            draft.PRIORITY[idx + 1] = draft.PRIORITY[idx];
+                            draft.PRIORITY[idx] = temp;
+                            renderPriorityList();
+                        };
+                        row.appendChild(downBtn);
+                    }
+
+                    const delBtn = createEl('button', 'background:transparent;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;', '✕');
+                    delBtn.style.border = `1px solid ${t.border}`;
+                    delBtn.style.color = t.btnDangerText;
+                    delBtn.title = 'Remove Rule';
+                    delBtn.onclick = () => {
+                        draft.PRIORITY.splice(idx, 1);
+                        renderPriorityList();
+                    };
+                    row.appendChild(delBtn);
+
+                    priorityListContainer.appendChild(row);
+                });
+            }
+
+            renderPriorityList();
+            prioritySec.appendChild(priorityListContainer);
+
+            const addRuleBtn = createEl('button', 'align-self:flex-start;padding:7px 14px;background:transparent;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;', '+ Add Priority Language');
+            addRuleBtn.style.border = `1px dashed ${t.accentColor}`;
+            addRuleBtn.style.color = t.accentColor;
+            addRuleBtn.onclick = () => {
+                draft.PRIORITY.push({ lang: 'en', autoGenerated: false, name: 'English' });
+                renderPriorityList();
+            };
+            prioritySec.appendChild(addRuleBtn);
+            body.appendChild(prioritySec);
+
+            // SECTION 2: AUTO TRANSLATE
+            const autoTransSec = createSection(
+                '🌐 Auto-Translate Fallback',
+                'If none of your priority languages match, automatically translates into this language.'
+            );
+            const autoTransRow = createEl('div', 'display:flex;align-items:center;gap:10px;');
+            const autoTransInput = createEl('input', 'width:100px;padding:8px 12px;border-radius:6px;font-size:13px;text-align:center;');
+            autoTransInput.style.background = t.bgInput;
+            autoTransInput.style.color = t.textMain;
+            autoTransInput.style.border = `1px solid ${t.border}`;
+            autoTransInput.placeholder = 'e.g. en';
+            autoTransInput.value = draft.AUTO_TRANSLATE_TARGET || '';
+            autoTransInput.oninput = () => { draft.AUTO_TRANSLATE_TARGET = autoTransInput.value.trim().toLowerCase(); };
+            autoTransRow.appendChild(autoTransInput);
+
+            const autoTransHelp = createEl('span', 'font-size:12px;', 'Language code (e.g. en, hu, fr, de), or leave empty to disable fallback.');
+            autoTransHelp.style.color = t.textMuted;
+            autoTransRow.appendChild(autoTransHelp);
+            autoTransSec.appendChild(autoTransRow);
+            body.appendChild(autoTransSec);
+
+            // SECTION 3: AUTOMATION SWITCHES
+            const autoSec = createSection('⚡ Smart Playback Controls');
+
+            function createToggleRow(titleText, descText, isChecked, onChange) {
+                const row = createEl('div', 'display:flex;justify-content:space-between;align-items:center;border-radius:8px;padding:12px 14px;box-sizing:border-box;');
+                row.style.background = t.bgCard;
+                row.style.border = `1px solid ${t.border}`;
+
+                const left = createEl('div', 'display:flex;flex-direction:column;gap:2px;');
+                const tEl = createEl('div', 'font-size:13px;font-weight:600;', titleText);
+                tEl.style.color = t.textMain;
+                const dEl = createEl('div', 'font-size:12px;line-height:1.3;', descText);
+                dEl.style.color = t.textMuted;
+                left.appendChild(tEl);
+                left.appendChild(dEl);
+                row.appendChild(left);
+
+                const switchLabel = createEl('label', 'position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;cursor:pointer;');
+                const checkbox = createEl('input', 'opacity:0;width:0;height:0;');
+                checkbox.type = 'checkbox';
+                checkbox.checked = Boolean(isChecked);
+
+                const slider = createEl('span', 'position:absolute;cursor:pointer;inset:0;border-radius:24px;transition:.2s;');
+                slider.style.backgroundColor = checkbox.checked ? t.accentColor : t.switchOffBg;
+
+                const knob = createEl('span', 'position:absolute;height:18px;width:18px;left:3px;bottom:3px;background-color:white;border-radius:50%;transition:.2s;');
+                knob.style.transform = checkbox.checked ? 'translateX(20px)' : 'translateX(0)';
+                slider.appendChild(knob);
+
+                checkbox.onchange = () => {
+                    slider.style.backgroundColor = checkbox.checked ? t.accentColor : t.switchOffBg;
+                    knob.style.transform = checkbox.checked ? 'translateX(20px)' : 'translateX(0)';
+                    onChange(checkbox.checked);
+                };
+
+                switchLabel.appendChild(checkbox);
+                switchLabel.appendChild(slider);
+                row.appendChild(switchLabel);
+                return row;
+            }
+
+            autoSec.appendChild(createToggleRow(
+                '🔇 Smart Mute',
+                'Turns captions ON when video is muted or volume is 0, and restores normal preference when unmuted.',
+                draft.SMART_MUTE,
+                (val) => { draft.SMART_MUTE = val; }
+            ));
+
+            const nativeRow = createToggleRow(
+                '🗣️ Native Language Auto-Disable',
+                'Turns captions OFF if original spoken audio matches your native language(s).',
+                draft.NATIVE_LANG_AUTO_DISABLE?.enabled,
+                (val) => {
+                    draft.NATIVE_LANG_AUTO_DISABLE = draft.NATIVE_LANG_AUTO_DISABLE || { languages: ['hu'] };
+                    draft.NATIVE_LANG_AUTO_DISABLE.enabled = val;
+                    nativeLangInputRow.style.display = val ? 'flex' : 'none';
+                }
+            );
+            autoSec.appendChild(nativeRow);
+
+            const nativeLangInputRow = createEl('div', `display:${draft.NATIVE_LANG_AUTO_DISABLE?.enabled ? 'flex' : 'none'};align-items:center;gap:8px;margin-left:14px;margin-top:-6px;`);
+            const nativeLabel = createEl('span', 'font-size:12px;', 'Native languages (comma-separated):');
+            nativeLabel.style.color = t.textMuted;
+            nativeLangInputRow.appendChild(nativeLabel);
+
+            const nativeLangInput = createEl('input', 'width:160px;padding:6px 10px;border-radius:6px;font-size:12px;');
+            nativeLangInput.style.background = t.bgInput;
+            nativeLangInput.style.color = t.textMain;
+            nativeLangInput.style.border = `1px solid ${t.border}`;
+            nativeLangInput.placeholder = 'e.g. hu, en';
+            nativeLangInput.value = (draft.NATIVE_LANG_AUTO_DISABLE?.languages || []).join(', ');
+            nativeLangInput.oninput = () => {
+                draft.NATIVE_LANG_AUTO_DISABLE.languages = nativeLangInput.value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+            };
+            nativeLangInputRow.appendChild(nativeLangInput);
+            autoSec.appendChild(nativeLangInputRow);
+
+            autoSec.appendChild(createToggleRow(
+                '📱 Disable on Shorts',
+                'Automatically keeps captions OFF when watching YouTube Shorts.',
+                draft.DISABLE_ON_SHORTS,
+                (val) => { draft.DISABLE_ON_SHORTS = val; }
+            ));
+
+            autoSec.appendChild(createToggleRow(
+                '🎵 Disable on Music Videos',
+                'Turns captions OFF on songs, official music videos, and topic tracks.',
+                draft.DISABLE_ON_MUSIC,
+                (val) => { draft.DISABLE_ON_MUSIC = val; }
+            ));
+
+            autoSec.appendChild(createToggleRow(
+                '🖐️ Respect Manual Override',
+                'Pauses automation for the current video if you manually toggle CC or press "C".',
+                draft.RESPECT_MANUAL_OVERRIDE,
+                (val) => { draft.RESPECT_MANUAL_OVERRIDE = val; }
+            ));
+
+            body.appendChild(autoSec);
+
+            // SECTION 4: CHANNEL FILTERS
+            const channelSec = createSection(
+                '🛡️ Channel Whitelist & Blacklist',
+                'Specify comma-separated channel names, @handles, or channel IDs.'
+            );
+
+            const whiteRow = createEl('div', 'display:flex;flex-direction:column;gap:4px;');
+            const whiteLabel = createEl('span', 'font-size:12px;font-weight:500;', 'Whitelist (Always Keep Captions ON):');
+            whiteLabel.style.color = t.textMain;
+            whiteRow.appendChild(whiteLabel);
+
+            const whiteInput = createEl('input', 'width:100%;padding:8px 12px;border-radius:6px;font-size:13px;box-sizing:border-box;');
+            whiteInput.style.background = t.bgInput;
+            whiteInput.style.color = t.textMain;
+            whiteInput.style.border = `1px solid ${t.border}`;
+            whiteInput.placeholder = 'e.g. @CreatorName, ChannelTitle';
+            whiteInput.value = (draft.CHANNEL_WHITELIST?.channels || []).join(', ');
+            whiteInput.oninput = () => {
+                const list = whiteInput.value.split(',').map(s => s.trim()).filter(Boolean);
+                draft.CHANNEL_WHITELIST = { enabled: list.length > 0, channels: list };
+            };
+            whiteRow.appendChild(whiteInput);
+            channelSec.appendChild(whiteRow);
+
+            const blackRow = createEl('div', 'display:flex;flex-direction:column;gap:4px;');
+            const blackLabel = createEl('span', 'font-size:12px;font-weight:500;', 'Blacklist (Always Keep Captions OFF):');
+            blackLabel.style.color = t.textMain;
+            blackRow.appendChild(blackLabel);
+
+            const blackInput = createEl('input', 'width:100%;padding:8px 12px;border-radius:6px;font-size:13px;box-sizing:border-box;');
+            blackInput.style.background = t.bgInput;
+            blackInput.style.color = t.textMain;
+            blackInput.style.border = `1px solid ${t.border}`;
+            blackInput.placeholder = 'e.g. @LofiGirl, UC-12345...';
+            blackInput.value = (draft.CHANNEL_BLACKLIST?.channels || []).join(', ');
+            blackInput.oninput = () => {
+                const list = blackInput.value.split(',').map(s => s.trim()).filter(Boolean);
+                draft.CHANNEL_BLACKLIST = { enabled: list.length > 0, channels: list };
+            };
+            blackRow.appendChild(blackInput);
+            channelSec.appendChild(blackRow);
+
+            body.appendChild(channelSec);
+
+            // 3. Footer with Action Buttons
+            const footer = createEl('div', 'padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;');
+            footer.style.background = t.bgCard;
+            footer.style.borderTop = `1px solid ${t.borderSubtle}`;
+
+            const resetBtn = createEl('button', 'padding:8px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;', 'Reset Defaults');
+            resetBtn.style.background = t.btnSecBg;
+            resetBtn.style.color = t.btnDangerText;
+            resetBtn.style.border = `1px solid ${t.border}`;
+
+            const rightBtns = createEl('div', 'display:flex;gap:10px;');
+            const cancelBtn = createEl('button', 'padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;', 'Cancel');
+            cancelBtn.style.background = t.btnSecBg;
+            cancelBtn.style.color = t.btnSecText;
+            cancelBtn.style.border = `1px solid ${t.border}`;
+
+            const saveBtn = createEl('button', 'padding:8px 22px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;', 'Save & Apply');
+            saveBtn.style.background = t.btnPrimaryBg;
+            saveBtn.style.color = t.btnPrimaryText;
+
+            rightBtns.appendChild(cancelBtn);
+            rightBtns.appendChild(saveBtn);
+
+            footer.appendChild(resetBtn);
+            footer.appendChild(rightBtns);
+
+            modal.appendChild(header);
+            modal.appendChild(body);
+            modal.appendChild(footer);
+            overlay.appendChild(modal);
+
+            const targetParent = doc.body || doc.documentElement || document.body || document.documentElement;
+            targetParent.appendChild(overlay);
+
+            // Live theme watcher
+            const themeObserver = new MutationObserver(() => {
+                const dark = isYouTubeDarkMode();
+                if (dark !== isDark) {
+                    isDark = dark;
+                    t = getTheme(isDark);
+                    overlay.style.background = t.bgOverlay;
+                    modal.style.background = t.bgModal;
+                    modal.style.color = t.textMain;
+                    modal.style.border = `1px solid ${t.border}`;
+                    header.style.background = t.bgCard;
+                    header.style.borderBottom = `1px solid ${t.borderSubtle}`;
+                    title.style.color = t.textMain;
+                    closeBtn.style.color = t.textMuted;
+                    footer.style.background = t.bgCard;
+                    footer.style.borderTop = `1px solid ${t.borderSubtle}`;
+                    saveBtn.style.background = t.btnPrimaryBg;
+                    saveBtn.style.color = t.btnPrimaryText;
+                    renderPriorityList();
+                }
+            });
+            themeObserver.observe(doc.documentElement, { attributes: true, attributeFilter: ['dark'] });
+
+            const close = () => {
+                overlay.remove();
+                themeObserver.disconnect();
+                doc.removeEventListener('keydown', handleKeyDown);
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') close();
+            };
+            doc.addEventListener('keydown', handleKeyDown);
+
+            closeBtn.onclick = close;
+            cancelBtn.onclick = close;
+            overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+            saveBtn.onclick = () => {
+                draft.PRIORITY = draft.PRIORITY.filter(p => p.lang && p.lang.trim());
+                saveConfig(draft);
+                close();
+                win.location.reload();
+            };
+
+            resetBtn.onclick = () => {
+                if (confirm('Are you sure you want to reset all caption settings to defaults?')) {
+                    try {
+                        if (typeof GM_setValue === 'function') GM_setValue('user_config', null);
+                        localStorage.removeItem('yt_caption_user_config');
+                        close();
+                        win.location.reload();
+                    } catch {}
+                }
+            };
+        } catch (e) {
+            console.error('[YT-Caption-Selector] Failed to open config menu:', e);
+            alert('Error opening settings menu: ' + e.message);
+        }
+    }
+
+    if (typeof GM_registerMenuCommand === 'function') {
+        GM_registerMenuCommand('⚙️ Edit Caption Settings', openSettingsModal);
+
+        GM_registerMenuCommand('🔄 Reset Settings to Default', () => {
+            if (confirm('Are you sure you want to reset your caption settings back to default?')) {
+                try {
+                    if (typeof GM_setValue === 'function') {
+                        GM_setValue('user_config', null);
+                    }
+                    if (typeof localStorage !== 'undefined') {
+                        localStorage.removeItem('yt_caption_user_config');
+                    }
+                    win.location.reload();
+                } catch {}
+            }
+        });
+    }
+
     let processedVideoId = '';
     let manualOverrideVideoId = '';
     let lastTargetVideoId = '';
@@ -176,7 +720,7 @@
         let visibleFallback = null;
         for (const v of videos) {
             const rect = v.getBoundingClientRect();
-            if (rect.width > 0 && rect.height > 0 && rect.top < window.innerHeight && rect.bottom > 0) {
+            if (rect.width > 0 && rect.height > 0 && rect.top < (win.innerHeight || window.innerHeight) && rect.bottom > 0) {
                 const container = v.closest('#movie_player, .html5-video-player');
                 if (container) {
                     if (!v.paused) return container;
@@ -270,8 +814,8 @@
             }
         } catch {}
 
-        if (window.ytInitialPlayerResponse?.videoDetails?.videoId === currentVideoId) {
-            return window.ytInitialPlayerResponse;
+        if (win.ytInitialPlayerResponse?.videoDetails?.videoId === currentVideoId) {
+            return win.ytInitialPlayerResponse;
         }
 
         return null;
@@ -913,13 +1457,16 @@
     // React dynamically to mute / volume changes when SMART_MUTE is enabled
     document.addEventListener('volumechange', () => handleVolumeOrMuteChange(), true);
 
+    win.addEventListener('yt-navigate-finish', onNavigation);
     window.addEventListener('yt-navigate-finish', onNavigation);
     document.addEventListener('yt-player-updated', scheduleCaptionCheck);
     document.addEventListener('yt-page-data-updated', scheduleCaptionCheck);
+    win.addEventListener('popstate', scheduleCaptionCheck);
     window.addEventListener('popstate', scheduleCaptionCheck);
 
-    if ('navigation' in window) {
-        window.navigation.addEventListener('navigatesuccess', scheduleCaptionCheck);
+    const nav = win.navigation || window.navigation;
+    if (nav) {
+        nav.addEventListener('navigatesuccess', scheduleCaptionCheck);
     }
 
     // Browser-agnostic SPA URL change fallback (covers Firefox/Safari if yt-* events change)
