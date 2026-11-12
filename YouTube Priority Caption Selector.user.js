@@ -8,8 +8,6 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @homepageURL  https://github.com/andris155/YouTubePriorityCaptionSelector
 // @supportURL   https://github.com/andris155/YouTubePriorityCaptionSelector/issues
-// @updateURL    https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js
-// @downloadURL  https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js
 // @match        https://www.youtube.com/*
 // @grant        none
 // @run-at       document-idle
