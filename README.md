@@ -1,13 +1,31 @@
 # YouTube Priority Caption Selector
 
-An intelligent, lightweight Tampermonkey / Violentmonkey userscript for YouTube that automatically selects and activates subtitle tracks based on an ordered priority list, with auto-translate fallback and smart contextual controls.
-
-![Platform](https://img.shields.io/badge/Platform-YouTube-red)
-![Userscript](https://img.shields.io/badge/Userscript-Tampermonkey%20%7C%20Violentmonkey-green)
-![License](https://img.shields.io/badge/License-MIT-lightgrey)
-![Vibecoded](https://img.shields.io/badge/Made%20With-Vibecoding-purple)
+<p align="center">
+  <strong>Intelligent, automated YouTube subtitle priority selector with auto-translate fallback</strong><br/><br/>
+  <img src="https://img.shields.io/badge/Version-1.1.2-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/Platform-YouTube-red" alt="Platform" />
+  <img src="https://img.shields.io/badge/Userscript-Tampermonkey%20%7C%20Violentmonkey-green" alt="Userscript" />
+  <img src="https://img.shields.io/badge/License-MIT-lightgrey" alt="License" />
+  <img src="https://img.shields.io/badge/Made%20With-Vibecoding-purple" alt="Vibecoded" />
+</p>
 
 > **Note:** This is a vibecoded script (built and refined with AI assistance).
+
+<p align="center">
+  <a href="#overview">Overview</a> •
+  <a href="#features">Features</a> •
+  <a href="#requirements">Requirements</a> •
+  <a href="#installation--updates">Installation</a> •
+  <a href="#configuration--settings">Configuration</a> •
+  <a href="#how-it-works--security">How It Works</a> •
+  <a href="#author--license">License</a>
+</p>
+
+---
+
+## Overview
+
+**YouTube Priority Caption Selector** is an intelligent, lightweight Tampermonkey / Violentmonkey userscript for YouTube that automatically selects and activates subtitle tracks based on an ordered priority list, with auto-translate fallback and smart contextual controls.
 
 ---
 
