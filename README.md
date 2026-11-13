@@ -2,7 +2,6 @@
 
 <p align="center">
   <strong>Intelligent, automated YouTube subtitle priority selector with auto-translate fallback</strong><br/><br/>
-  <img src="https://img.shields.io/badge/Version-1.1.2-blue" alt="Version" />
   <img src="https://img.shields.io/badge/Platform-YouTube-red" alt="Platform" />
   <img src="https://img.shields.io/badge/Userscript-Tampermonkey%20%7C%20Violentmonkey-green" alt="Userscript" />
   <img src="https://img.shields.io/badge/License-MIT-lightgrey" alt="License" />
