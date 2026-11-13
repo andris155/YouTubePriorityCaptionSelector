@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Priority Caption Selector
 // @namespace    https://github.com/andris155/YouTubePriorityCaptionSelector
-// @version      1.1.1
+// @version      1.1.2
 // @description  Automatically selects YouTube captions based on your custom language priority list (manual & auto-generated), with intelligent auto-translate fallback and zero player flickering.
 // @author       andris155
 // @license      MIT
@@ -11,7 +11,9 @@
 // @updateURL    https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js
 // @downloadURL  https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js
 // @match        https://www.youtube.com/*
-// @noframes
+// @match        https://www.youtube-nocookie.com/embed/*
+// @exclude      https://www.youtube.com/live_chat*
+// @exclude      https://www.youtube.com/live_chat_replay*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
@@ -22,8 +24,16 @@
 (function () {
     'use strict';
 
-    // Prevent running inside iframes (e.g. live chat, embedded frames)
-    if (window.self !== window.top) {
+    // Allow running on top window or inside embedded player iframes (/embed/*),
+    // but strictly block live chat frames and other internal subframes.
+    function shouldRunInCurrentFrame() {
+        const { pathname } = location;
+        if (pathname.startsWith('/live_chat')) return false;
+        if (window.self === window.top) return true;
+        return pathname.startsWith('/embed/');
+    }
+
+    if (!shouldRunInCurrentFrame()) {
         return;
     }
 
@@ -62,6 +72,10 @@
         // Shorts Auto-Disable (default: off):
         // When set to true, automatically turns captions OFF if they are on for Shorts.
         DISABLE_ON_SHORTS: false,
+
+        // Embedded Player Support (default: on):
+        // When set to true, automatically selects priority captions on embedded YouTube players (/embed/*).
+        ENABLE_ON_EMBEDS: true,
 
         // "Native Language" Auto-Disable (default: off):
         // When enabled, automatically turns captions OFF if the video's original audio
@@ -480,6 +494,13 @@
             ));
 
             autoSec.appendChild(createToggleRow(
+                '📺 Enable on Embedded Players',
+                'Automatically selects priority captions on embedded YouTube players across external websites.',
+                draft.ENABLE_ON_EMBEDS,
+                (val) => { draft.ENABLE_ON_EMBEDS = val; }
+            ));
+
+            autoSec.appendChild(createToggleRow(
                 '🎵 Disable on Music Videos',
                 'Turns captions OFF on songs, official music videos, and topic tracks.',
                 draft.DISABLE_ON_MUSIC,
@@ -697,7 +718,7 @@
 
     function isWatchPage() {
         const { pathname } = location;
-        return pathname.startsWith('/watch') || pathname.startsWith('/shorts') || pathname.startsWith('/live');
+        return pathname.startsWith('/watch') || pathname.startsWith('/shorts') || pathname.startsWith('/live') || pathname.startsWith('/embed');
     }
 
     function isShortsDisabled() {
@@ -706,7 +727,7 @@
 
     function getTargetVideoId() {
         const { pathname, search } = location;
-        const match = pathname.match(/^\/(?:shorts|live)\/([a-zA-Z0-9_-]+)/);
+        const match = pathname.match(/^\/(?:shorts|live|embed)\/([a-zA-Z0-9_-]+)/);
         if (match) return match[1];
         return new URLSearchParams(search).get('v') || '';
     }
@@ -1202,6 +1223,11 @@
             return true;
         }
 
+        // Embedded Player Disable Check
+        if (location.pathname.startsWith('/embed') && !CONFIG.ENABLE_ON_EMBEDS) {
+            return true;
+        }
+
         const isMuted = Boolean(CONFIG.SMART_MUTE && isPlayerMuted(player));
         lastMuteState = isPlayerMuted(player);
         if (isMuted) {
@@ -1273,6 +1299,7 @@
         clearPollInterval();
 
         if (!isWatchPage()) return;
+        if (location.pathname.startsWith('/embed') && !CONFIG.ENABLE_ON_EMBEDS) return;
 
         const targetId = getTargetVideoId();
         if (targetId && targetId !== lastTargetVideoId) {
