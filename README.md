@@ -12,6 +12,7 @@
 
 <p align="center">
   <a href="#overview">Overview</a> •
+  <a href="#screenshots">Screenshots</a> •
   <a href="#features">Features</a> •
   <a href="#requirements">Requirements</a> •
   <a href="#installation--updates">Installation</a> •
@@ -25,6 +26,18 @@
 ## Overview
 
 **YouTube Priority Caption Selector** is an intelligent, lightweight Tampermonkey / Violentmonkey userscript for YouTube that automatically selects and activates subtitle tracks based on an ordered priority list, with auto-translate fallback and smart contextual controls.
+
+---
+
+## Screenshots
+
+### Settings Dashboard
+*In-page configuration dashboard with priority rule sorting, auto-translate configuration, and smart context controls.*
+
+<p align="center">
+  <img src="assets/SettingsDarkMode.png" alt="Settings Dashboard (Dark Mode)" width="49%" />
+  <img src="assets/SettingsLightMode.png" alt="Settings Dashboard (Light Mode)" width="49%" />
+</p>
 
 ---
 
