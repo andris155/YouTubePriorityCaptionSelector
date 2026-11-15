@@ -70,10 +70,10 @@
 ## Installation & Updates
 
 1. Ensure your userscript manager is installed and enabled.
-2. Click the direct raw install link:
-   - **[Install YouTube Priority Caption Selector](https://raw.githubusercontent.com/andris155/YouTubePriorityCaptionSelector/main/YouTube%20Priority%20Caption%20Selector.user.js)**
+2. Click the direct install link from the latest release:
+   - **[Install YouTube Priority Caption Selector](https://github.com/andris155/YouTubePriorityCaptionSelector/releases/latest/download/YouTube%20Priority%20Caption%20Selector.user.js)**
 3. Your userscript manager will open an installation tab — click **Install**.
-4. The userscript includes `@updateURL` and `@downloadURL`, so future updates from GitHub are checked and installed automatically by your userscript manager.
+4. The userscript includes `@updateURL` and `@downloadURL` linked to GitHub Releases, so future updates from releases are checked and installed automatically by your userscript manager.
 
 ---
 
