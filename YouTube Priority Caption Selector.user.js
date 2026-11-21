@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Priority Caption Selector
 // @namespace    https://github.com/andris155/YouTubePriorityCaptionSelector
-// @version      1.1.3
+// @version      1.1.4
 // @description  Automatically selects YouTube captions based on your custom language priority list (manual & auto-generated), with intelligent auto-translate fallback and zero player flickering.
 // @author       andris155
 // @license      MIT
@@ -182,8 +182,7 @@
         try {
             return Boolean(
                 doc.documentElement.hasAttribute('dark') ||
-                doc.querySelector('html[dark]') ||
-                (win.matchMedia && win.matchMedia('(prefers-color-scheme: dark)').matches)
+                doc.querySelector('html[dark], ytd-app[dark]')
             );
         } catch {
             return false;
@@ -225,7 +224,7 @@
 
             let t = getTheme(isDark);
 
-            const overlay = createEl('div', 'position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;z-index:2147483647;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;box-sizing:border-box;');
+            const overlay = createEl('div', 'position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;z-index:2147483647;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;box-sizing:border-box;');
             overlay.id = 'yt-caption-settings-modal';
             overlay.style.background = t.bgOverlay;
 
@@ -591,8 +590,23 @@
             modal.appendChild(footer);
             overlay.appendChild(modal);
 
-            const targetParent = doc.body || doc.documentElement || document.body || document.documentElement;
+            const getTargetParent = () => {
+                const fsEl = doc.fullscreenElement || document.fullscreenElement || doc.webkitFullscreenElement || document.webkitFullscreenElement;
+                return fsEl || doc.body || doc.documentElement || document.body || document.documentElement;
+            };
+
+            const targetParent = getTargetParent();
             targetParent.appendChild(overlay);
+
+            // Handle entering or exiting fullscreen while modal is open
+            const handleFullscreenChange = () => {
+                const newParent = getTargetParent();
+                if (newParent && overlay.parentNode !== newParent) {
+                    newParent.appendChild(overlay);
+                }
+            };
+            doc.addEventListener('fullscreenchange', handleFullscreenChange);
+            doc.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
             // Live theme watcher
             const themeObserver = new MutationObserver(() => {
@@ -620,13 +634,19 @@
             const close = () => {
                 overlay.remove();
                 themeObserver.disconnect();
-                doc.removeEventListener('keydown', handleKeyDown);
+                doc.removeEventListener('keydown', handleKeyDown, true);
+                doc.removeEventListener('fullscreenchange', handleFullscreenChange);
+                doc.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
             };
 
             const handleKeyDown = (e) => {
-                if (e.key === 'Escape') close();
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    close();
+                }
             };
-            doc.addEventListener('keydown', handleKeyDown);
+            doc.addEventListener('keydown', handleKeyDown, true);
 
             closeBtn.onclick = close;
             cancelBtn.onclick = close;
@@ -682,8 +702,10 @@
     let pollInterval = null;
     let mountTimer = null;
     let lastMuteState = null;
+    let lastAudioTrackId = '';
     let smartMuteTurnedCaptionsOn = false;
     let isVolumeOrMuteChanging = false;
+    let isAudioTrackChanging = false;
     const hookedPlayers = new WeakSet();
 
     function log(...args) {
@@ -712,8 +734,10 @@
         manualOverrideVideoId = '';
         lastKnownCaptionState = '';
         lastMuteState = null;
+        lastAudioTrackId = '';
         smartMuteTurnedCaptionsOn = false;
         isVolumeOrMuteChanging = false;
+        isAudioTrackChanging = false;
     }
 
     function isWatchPage() {
@@ -814,9 +838,10 @@
 
     function matchesLanguage(track, targetLang) {
         const lang = track.languageCode;
-        if (!lang) return false;
+        if (!lang || !targetLang) return false;
         const lower = lang.toLowerCase();
-        return lower === targetLang || lower.startsWith(`${targetLang}-`);
+        const target = targetLang.trim().toLowerCase();
+        return lower === target || lower.startsWith(`${target}-`);
     }
 
     function findMatchingTrack(tracks, rule) {
@@ -963,20 +988,28 @@
             const clean = entry.trim().toLowerCase();
             if (!clean) return false;
 
+            const cleanNoAt = clean.replace(/^@/, '');
             return (
-                (authorLower && authorLower === clean) ||
+                (authorLower && (authorLower === clean || authorLower === cleanNoAt)) ||
                 (idLower && idLower === clean) ||
-                (handleLower && (handleLower === clean || handleLower === `@${clean.replace(/^@/, '')}`))
+                (handleLower && (handleLower === clean || handleLower === `@${cleanNoAt}`))
             );
         });
     }
 
     function hasNoCaptionsAvailable(player, currentVideoId) {
+        try {
+            const apiTracks = player?.getOption?.('captions', 'tracklist');
+            if (Array.isArray(apiTracks) && apiTracks.length > 0) return false;
+        } catch {}
+
         const response = getFreshPlayerResponse(player, currentVideoId);
         if (!response) return false;
-        if (!response.captions) return true;
-        const tracks = response.captions.playerCaptionsTracklistRenderer?.captionTracks;
-        return Array.isArray(tracks) && tracks.length === 0;
+        if (response.captions && response.captions.playerCaptionsTracklistRenderer) {
+            const tracks = response.captions.playerCaptionsTracklistRenderer.captionTracks;
+            return Array.isArray(tracks) && tracks.length === 0;
+        }
+        return false;
     }
 
     function getAvailableTracks(player, currentVideoId) {
@@ -1099,7 +1132,8 @@
 
         const trackPayload = {
             languageCode: track.languageCode,
-            ...(track.vssId ? { vssId: track.vssId } : {})
+            ...(track.vssId ? { vssId: track.vssId } : {}),
+            ...(track.kind ? { kind: track.kind } : {})
         };
 
         const apply = () => {
@@ -1214,6 +1248,11 @@
         }
 
         if (playerVideoId === processedVideoId) return true;
+
+        const currentAudio = player?.getAudioTrack?.();
+        if (currentAudio) {
+            lastAudioTrackId = currentAudio.id || currentAudio.languageCode || '';
+        }
 
         // 0. Shorts Auto-Disable Check
         if (isShortsDisabled()) {
@@ -1376,11 +1415,17 @@
             return;
         }
 
-        // Class-independent settings check: any trusted click inside the player that alters caption state
+        // Class-independent settings check: any trusted click inside the player that alters caption or audio state
         if (player && player.contains?.(e.target)) {
             const prevState = getCaptionStateSnapshot(player);
+            const prevAudio = player?.getAudioTrack?.()?.id || player?.getAudioTrack?.()?.languageCode || '';
             setTimeout(() => {
-                if (isScriptApplying || isVolumeOrMuteChanging) return;
+                if (isScriptApplying || isVolumeOrMuteChanging || isAudioTrackChanging) return;
+                const nextAudio = player?.getAudioTrack?.()?.id || player?.getAudioTrack?.()?.languageCode || '';
+                if (prevAudio && nextAudio && prevAudio !== nextAudio) {
+                    handleAudioTrackChange(player, player?.getAudioTrack?.());
+                    return;
+                }
                 const nextState = getCaptionStateSnapshot(player);
                 if (prevState && nextState && prevState !== nextState) {
                     smartMuteTurnedCaptionsOn = false;
@@ -1466,10 +1511,44 @@
         }
     }
 
+    function handleAudioTrackChange(player, eventData) {
+        if (!isWatchPage()) return;
+        const currentAudio = player?.getAudioTrack?.();
+        const trackId = currentAudio?.id || currentAudio?.languageCode || eventData?.id || eventData?.languageCode || '';
+        if (trackId && lastAudioTrackId && trackId === lastAudioTrackId) return;
+
+        lastAudioTrackId = trackId;
+        log(`Audio track changed to [${trackId || 'unknown'}]. Re-evaluating caption preferences.`);
+
+        isAudioTrackChanging = true;
+        processedVideoId = '';
+        manualOverrideVideoId = '';
+
+        setTimeout(() => {
+            try {
+                applyCaptionPreference(player, true);
+            } finally {
+                setTimeout(() => {
+                    isAudioTrackChanging = false;
+                }, 200);
+            }
+        }, 150);
+    }
+
     function handlePlayerApiChange(player) {
-        if (isScriptApplying || isVolumeOrMuteChanging || !CONFIG.RESPECT_MANUAL_OVERRIDE || !isWatchPage()) return;
+        if (isScriptApplying || isVolumeOrMuteChanging || isAudioTrackChanging || !isWatchPage()) return;
         const videoId = player?.getVideoData?.()?.video_id;
-        if (!videoId || videoId !== processedVideoId || videoId === manualOverrideVideoId) return;
+        if (!videoId) return;
+
+        // Detect audio track switch via onApiChange
+        const currentAudio = player?.getAudioTrack?.();
+        const trackId = currentAudio?.id || currentAudio?.languageCode || '';
+        if (trackId && lastAudioTrackId && trackId !== lastAudioTrackId) {
+            handleAudioTrackChange(player, currentAudio);
+            return;
+        }
+
+        if (!CONFIG.RESPECT_MANUAL_OVERRIDE || videoId !== processedVideoId || videoId === manualOverrideVideoId) return;
 
         const currentState = getCaptionStateSnapshot(player);
         if (lastKnownCaptionState && currentState && currentState !== lastKnownCaptionState) {
@@ -1483,6 +1562,7 @@
         hookedPlayers.add(player);
         try {
             player.addEventListener('onVolumeChange', handleVolumeOrMuteChange);
+            player.addEventListener('onAudioTrackChange', (eventData) => handleAudioTrackChange(player, eventData));
             player.addEventListener('onApiChange', () => handlePlayerApiChange(player));
         } catch {}
     }
@@ -1496,6 +1576,16 @@
     document.addEventListener('yt-page-data-updated', scheduleCaptionCheck);
     win.addEventListener('popstate', scheduleCaptionCheck);
     window.addEventListener('popstate', scheduleCaptionCheck);
+
+    // React to browser Back/Forward Cache (bfcache) restorations
+    const handlePageShow = (e) => {
+        if (e && e.persisted) {
+            log('Page restored from back/forward cache (bfcache). Re-checking captions.');
+            onNavigation();
+        }
+    };
+    win.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('pageshow', handlePageShow);
 
     const nav = win.navigation || window.navigation;
     if (nav) {

@@ -48,13 +48,14 @@
 - **Auto-Translate Fallback:** When none of your preferred languages are available directly, automatically selects the best source track and requests YouTube's auto-translation into your chosen target language.
 - **Smart Mute:** Automatically enables subtitles whenever volume is reduced to zero or the player is muted, and restores your previous subtitle preference as soon as volume is restored.
 - **Native Audio Auto-Disable:** Automatically turns subtitles off if the video's original audio matches one of your native spoken languages.
+- **Multi-Language Audio Track Awareness:** Automatically re-evaluates subtitle preferences when switching audio tracks on multi-language dubbed videos.
 - **Channel Filters:** Specify channel whitelists (always leave subtitles on) or blacklists (keep subtitles off).
 - **Music & Shorts Controls:** Optionally turn subtitles off on official music videos, topic tracks, or YouTube Shorts.
 - **Manual Override Respect:** If you manually toggle the CC button, press `C`, or change subtitle options via YouTube's menu, the script stands down for that video.
 - **Built-in Settings GUI:** Open the in-page settings dashboard directly from your userscript extension menu to configure priority languages, switches, and channel rules without touching any code.
 - **Automatic Light & Dark Mode:** The settings interface automatically adapts to YouTube's active appearance theme.
 - **Persistent Across Updates:** Custom settings are saved to disk in extension storage (`GM_getValue`) so GitHub updates never overwrite your configuration.
-- **Flicker-Free Navigation:** Seamlessly tracks YouTube's single-page app navigation without jarring UI flashes.
+- **Flicker-Free Navigation:** Seamlessly tracks YouTube's single-page app navigation and browser back/forward cache (bfcache) restorations without jarring UI flashes.
 
 ---
 
