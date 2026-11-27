@@ -750,7 +750,10 @@
     }
 
     function hasChannelTrailerPlayer() {
-        return Boolean(document.querySelector('ytd-channel-video-player-renderer .html5-video-player'));
+        const trailer = document.querySelector('ytd-channel-video-player-renderer .html5-video-player');
+        if (!trailer) return false;
+        const rect = trailer.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
     }
 
     function isCaptionContextActive() {
@@ -1638,10 +1641,8 @@
     document.addEventListener('volumechange', () => handleVolumeOrMuteChange(), true);
 
     win.addEventListener('yt-navigate-finish', onNavigation);
-    window.addEventListener('yt-navigate-finish', onNavigation);
     document.addEventListener('yt-player-updated', scheduleCaptionCheck);
     document.addEventListener('yt-page-data-updated', scheduleCaptionCheck);
-    win.addEventListener('popstate', scheduleCaptionCheck);
     window.addEventListener('popstate', scheduleCaptionCheck);
 
     // React to browser Back/Forward Cache (bfcache) restorations
@@ -1651,7 +1652,6 @@
             onNavigation();
         }
     };
-    win.addEventListener('pageshow', handlePageShow);
     window.addEventListener('pageshow', handlePageShow);
 
     const nav = win.navigation || window.navigation;
