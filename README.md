@@ -55,7 +55,7 @@
 - **Built-in Settings GUI:** Open the in-page settings dashboard directly from your userscript extension menu to configure priority languages, switches, and channel rules without touching any code.
 - **Automatic Light & Dark Mode:** The settings interface automatically adapts to YouTube's active appearance theme.
 - **Persistent Across Updates:** Custom settings are saved to disk in extension storage (`GM_getValue`) so GitHub updates never overwrite your configuration.
-- **Flicker-Free Navigation:** Seamlessly tracks YouTube's single-page app navigation and browser back/forward cache (bfcache) restorations without jarring UI flashes.
+- **Flicker-Free & Edge-Case Resilient:** Seamlessly handles YouTube SPA navigation, back/forward cache (bfcache), Miniplayer, playlist embeds, channel trailers, pre-roll ads, and upcoming Premieres without jarring UI flashes.
 
 ---
 

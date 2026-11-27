@@ -28,7 +28,7 @@ Includes a full in-page visual settings dashboard accessible right from your use
 * 🖱️ **Respects Manual Overrides:** If you manually click the CC button or change tracks in YouTube's player menu, the script steps aside for that video.
 * ⚙️ **In-Page Settings GUI:** Configure all priority rules, options, and channel filters without touching any code.
 * 🌓 **Auto Theme Support:** The settings interface automatically adapts to YouTube’s active Light or Dark appearance without OS conflicts.
-* ⚡ **Flicker-Free & Instant:** Hooks directly into YouTube's player API and browser history cache (bfcache) with zero player reload flickers or background CPU load.
+* ⚡ **Flicker-Free & Edge-Case Resilient:** Hooks directly into YouTube's player API and browser history cache (bfcache), cleanly handling Miniplayer, playlist embeds, channel trailers, pre-roll ads, and upcoming Premieres with zero player reload flickers.
 
 ---
 
