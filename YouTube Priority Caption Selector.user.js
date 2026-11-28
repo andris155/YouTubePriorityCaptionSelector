@@ -706,6 +706,9 @@
     let smartMuteTurnedCaptionsOn = false;
     let isVolumeOrMuteChanging = false;
     let isAudioTrackChanging = false;
+    let cachedPlayerResponse = null;
+    let cachedPlayerResponseId = '';
+    let cachedPlayerRef = null;
     const hookedPlayers = new WeakSet();
 
     function log(...args) {
@@ -738,6 +741,9 @@
         smartMuteTurnedCaptionsOn = false;
         isVolumeOrMuteChanging = false;
         isAudioTrackChanging = false;
+        cachedPlayerResponse = null;
+        cachedPlayerResponseId = '';
+        cachedPlayerRef = null;
     }
 
     function isWatchPage() {
@@ -886,18 +892,29 @@
     }
 
     function getFreshPlayerResponse(player, currentVideoId) {
+        if (cachedPlayerResponse && currentVideoId && cachedPlayerResponseId === currentVideoId && cachedPlayerRef === player) {
+            return cachedPlayerResponse;
+        }
+
+        let resolved = null;
         try {
             const response = player?.getPlayerResponse?.();
             if (response?.videoDetails?.videoId === currentVideoId) {
-                return response;
+                resolved = response;
             }
         } catch {}
 
-        if (win.ytInitialPlayerResponse?.videoDetails?.videoId === currentVideoId) {
-            return win.ytInitialPlayerResponse;
+        if (!resolved && win.ytInitialPlayerResponse?.videoDetails?.videoId === currentVideoId) {
+            resolved = win.ytInitialPlayerResponse;
         }
 
-        return null;
+        if (resolved && currentVideoId && resolved.playabilityStatus?.status === 'OK') {
+            cachedPlayerResponse = resolved;
+            cachedPlayerResponseId = currentVideoId;
+            cachedPlayerRef = player;
+        }
+
+        return resolved;
     }
 
     function extractLangFromTrackId(id) {
